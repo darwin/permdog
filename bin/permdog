@@ -1,0 +1,37 @@
+#!/usr/bin/env ruby
+
+require 'bundler/setup'
+require 'listen'
+require 'colored'
+
+def chmod777(file)
+  puts "> chmod 0777 \"".magenta + file.blue + "\"".magenta
+  File.chmod 0777, file
+end
+
+callback = Proc.new do |modified, added, removed|
+  puts "---------------------------------------------------------------------------------------------------"
+  puts "got modifications:\n#{modified.to_s.green}\n#{added.to_s.yellow}\n#{removed.to_s.red}"
+
+  # build a queue of all files
+  queue = []
+  modified.each { |file| queue << [file, "modified"] }
+  added.each { |file| queue << [file, "added"] }
+  removed.each { |file| queue << [file, "removed"] }
+
+  # run through all affected files
+  puts "processing changed files:"
+  queue.each do |item|
+    file = item[0]
+    kind = item[1]
+    next if kind == "removed" # we are not interested in removed files
+    chmod777(file)
+  end
+end
+
+# TODO: paths & listener options should be configured via some config file
+listener = Listen.to(File.expand_path('/tmp/permdog-test/watched-folder'))
+listener.change(&callback)
+
+puts "Listening for changes..."
+listener.start # blocks!
