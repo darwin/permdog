@@ -1,12 +1,17 @@
 # Permissions watch dog
 
-### Installation:
+### Prerequisities
+
+  * [ruby](http://www.ruby-lang.org/en/downloads/) (tested with v1.9.3)
+  * [bundler](http://gembundler.com)
+
+### Installation
 
     git clone git@github.com:darwin/permdog.git
     cd permdog
     bundle install
 
-### Running:
+### Running
 
 Run it in first terminal session:
 
