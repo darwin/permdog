@@ -27,6 +27,19 @@ def chmod777(file)
   File.chmod 0777, file
 end
 
+def process(file)
+  stat = File.stat(file)
+  owner = Etc.getpwuid(stat.uid).name
+  chmod777(file) unless (stat.mode & 0777 == 0777)
+  setFinderComment(file, owner) unless owner == getFinderComment(file)
+end
+
+def perform_initial_checks(folder)
+  Dir.glob(File.join(folder, "**", "*")) do |file|
+    process file
+  end
+end
+
 callback = Proc.new do |modified, added, removed|
   # puts "---------------------------------------------------------------------------------------------------"
   # puts "got modifications:\n#{modified.to_s.green}\n#{added.to_s.yellow}\n#{removed.to_s.red}"
@@ -42,19 +55,17 @@ callback = Proc.new do |modified, added, removed|
   # run through all affected files
   puts "processing #{queue.size} changed file(s):"
   queue.each do |item|
-    file = item[0]
-    kind = item[1]
-
-    stat = File.stat(file)
-    owner = Etc.getpwuid(stat.uid).name
-    chmod777(file) unless (stat.mode & 0777 == 0777)
-    setFinderComment(file, owner) unless owner == getFinderComment(file)
+    process item[0]
   end
 end
 
 # TODO: paths & listener options should be configured via some config file
-listener = Listen.to(File.expand_path('/tmp/permdog-test/watched-folder'))
-listener.change(&callback)
+root = File.expand_path('/tmp/permdog-test/watched-folder')
+
+puts "Performing initial checks..."
+perform_initial_checks(root)
 
 puts "Listening for changes..."
+listener = Listen.to(root)
+listener.change(&callback)
 listener.start # blocks!
