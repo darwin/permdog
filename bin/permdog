@@ -3,8 +3,6 @@
 require 'bundler/setup'
 require 'listen'
 require 'colored'
-require 'plist'
-require 'open3'
 require 'etc'
 
 def escapeQ(s)
@@ -12,18 +10,6 @@ def escapeQ(s)
 end
 
 def setFinderComment(file, comment)
-  # this is more universal approach, but this does not refresh the Finder:
-  #
-  # plist = [comment].to_plist
-  # encoded_binary_list = ""
-  # Open3.popen3("plutil -convert binary1 -o - - | xxd -ps") do |stdin, stdout, stderr|
-  #   stdin.print plist
-  #   stdin.close
-  #   encoded_binary_list = stdout.read
-  # end
-  # cmd = "xattr -wx com.apple.metadata:kMDItemFinderComment \"#{encoded_binary_list}\" \"#{file}\""
-
-  # call applescript for rescue
   apple_script = "tell application \"Finder\" to set comment of alias POSIX file \"#{escapeQ(file)}\" to \"#{escapeQ(comment)}\""
   cmd = "osascript -e \"#{escapeQ(apple_script)}\""
   puts "  setting comment of ".magenta + file.blue + " to ".magenta + comment.green
@@ -31,9 +17,6 @@ def setFinderComment(file, comment)
 end
 
 def getFinderComment(file)
-  # cmd = "xattr -p com.apple.metadata:kMDItemFinderComment \"#{file}\" | xxd -r -p | plutil -convert xml1 -o - -"
-
-  # call applescript for rescue
   apple_script = "tell application \"Finder\" to get comment of alias POSIX file \"#{escapeQ(file)}\""
   cmd = "osascript -e \"#{escapeQ(apple_script)}\""
   `#{cmd}`.strip
