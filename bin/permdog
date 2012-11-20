@@ -5,6 +5,70 @@ require 'listen'
 require 'colored'
 require 'etc'
 
+########################################################################################################################
+# aaaaagh!
+
+# monkey patch Listen to report also ownership changes and mode changes as file modifications
+module Listen
+  class DirectoryRecord
+    MetaData = Struct.new(:type, :mtime, :mode, :uid)
+
+    def insert_path(path)
+      stat = File.stat(path)
+      meta_data = MetaData.new
+      meta_data.type = File.directory?(path) ? 'Dir' : 'File'
+      meta_data.mtime = mtime_of(path) unless meta_data.type == 'Dir' # mtimes of dirs are not used yet
+      meta_data.mode = stat.mode
+      meta_data.uid = stat.uid
+      @paths[File.dirname(path)][File.basename(path)] = meta_data
+    rescue Errno::ENOENT
+    end
+
+    def detect_modifications_and_removals(directory, options = {})
+       @paths[directory].each do |basename, meta_data|
+         path = File.join(directory, basename)
+
+         case meta_data.type
+         when 'Dir'
+           if File.directory?(path)
+             detect_modifications_and_removals(path, options) if options[:recursive]
+           else
+             detect_modifications_and_removals(path, { :recursive => true }.merge(options))
+             @paths[directory].delete(basename)
+             @paths.delete("#{directory}/#{basename}")
+           end
+         when 'File'
+           if File.exist?(path)
+             new_mtime = mtime_of(path)
+             stat = File.stat(path)
+
+             # First check if we are in the same second (to update checksums)
+             # before checking the time difference
+             if stat.mode != meta_data.mode || stat.uid != meta_data.uid || (meta_data.mtime.to_i == new_mtime.to_i && content_modified?(path)) || meta_data.mtime < new_mtime
+               # Update the sha1 checksum of the file
+               insert_sha1_checksum(path)
+
+               # Update the meta data of the file
+               meta_data.mtime = new_mtime
+               meta_data.uid = stat.uid
+               meta_data.mode = stat.mode
+               @paths[directory][basename] = meta_data
+
+               @changes[:modified] << (options[:relative_paths] ? relative_to_base(path) : path)
+             end
+           else
+             @paths[directory].delete(basename)
+             @sha1_checksums.delete(path)
+             @changes[:removed] << (options[:relative_paths] ? relative_to_base(path) : path)
+           end
+         end
+       end
+     end
+  end
+end
+
+########################################################################################################################
+
 def escapeQ(s)
   s.gsub("\n", "\\n").gsub('\\', '\\\\').gsub('"','\"')
 end
